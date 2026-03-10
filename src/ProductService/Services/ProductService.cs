@@ -1,63 +1,55 @@
-﻿using ProductService.Models;
+﻿using Microsoft.EntityFrameworkCore;
+using ProductService.Data;
+using ProductService.Models;
 
-namespace ProductService.Services
+namespace ProductService.Services;
+
+public class ProductService : IProductService
 {
-    public class ProductService : IProductService
+    private readonly AppDbContext _context;
+
+    public ProductService(AppDbContext context)
     {
+        _context = context;
+    }
 
-        private readonly List<Product> _products = new()
-        {
-            new Product { Id = 1, Name = "Laptop", Description = "Gaming Laptop", Price = 1500.00m, Stock = 10 },
-        new Product { Id = 2, Name = "Mouse", Description = "Wireless Mouse", Price = 25.00m, Stock = 50 },
-        new Product { Id = 3, Name = "Keyboard", Description = "Mechanical Keyboard", Price = 75.00m, Stock = 30 }
-        };
+    public async Task<List<Product>> GetAllAsync()
+    {
+        return await _context.Products.ToListAsync();
+    }
 
-        private int _nextId = 4;
+    public async Task<Product?> GetByIdAsync(int id)
+    {
+        return await _context.Products.FindAsync(id);
+    }
 
-        public Task<List<Product>> GetAllAsync()
-        {
-            return Task.FromResult(_products.ToList());
-        }
+    public async Task<Product> CreateAsync(Product product)
+    {
+        _context.Products.Add(product);
+        await _context.SaveChangesAsync();
+        return product;
+    }
 
-        public Task<Product?> GetByIdAsync(int id)
-        {
-            var product = _products.FirstOrDefault(p => p.Id == id);
-            return Task.FromResult(product);
-        }
+    public async Task<Product?> UpdateAsync(int id, Product updated)
+    {
+        var product = await _context.Products.FindAsync(id);
+        if (product is null) return null;
 
-        public Task<Product> CreateAsync(Product product)
-        {
-            product.Id = _nextId++;
-            product.CreatedAt = DateTime.UtcNow;
-            _products.Add(product);
-            return Task.FromResult(product);
-        }
+        product.Name = updated.Name;
+        product.Price = updated.Price;
+        product.Stock = updated.Stock;
 
-        public Task<Product?> UpdateAsync(int id, Product updatedProduct)
-        {
-            var product = _products.FirstOrDefault(p => p.Id == id);
-            if (product is null) return Task.FromResult<Product?>(null);
+        await _context.SaveChangesAsync();
+        return product;
+    }
 
-            product.Name = updatedProduct.Name;
-            product.Description = updatedProduct.Description;
-            product.Price = updatedProduct.Price;
-            product.Stock = updatedProduct.Stock;
+    public async Task<bool> DeleteAsync(int id)
+    {
+        var product = await _context.Products.FindAsync(id);
+        if (product is null) return false;
 
-            return Task.FromResult<Product?>(product);
-        }
-
-
-        public Task<bool> DeleteAsync(int id)
-        {
-            var product = _products.FirstOrDefault(p => p.Id == id);
-
-            if (product is null) return Task.FromResult(false);
-
-            _products.Remove(product);
-            return Task.FromResult(true);
-
-        }
-
-
+        _context.Products.Remove(product);
+        await _context.SaveChangesAsync();
+        return true;
     }
 }

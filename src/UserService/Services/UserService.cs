@@ -1,75 +1,76 @@
-﻿using UserService.Models;
+﻿using Microsoft.EntityFrameworkCore;
+using UserService.Data;
+using UserService.Models;
 
-namespace UserService.Services
+namespace UserService.Services;
+
+public class UserService : IUserService
 {
-    public class UserService : IUserService
+    private readonly AppDbContext _context;
+
+    public UserService(AppDbContext context)
     {
-        private readonly List<User> _users = new()
+        _context = context;
+    }
+
+    public async Task<List<User>> GetAllAsync()
+    {
+        return await _context.Users.ToListAsync();
+    }
+
+    public async Task<User?> GetByIdAsync(int id)
+    {
+        return await _context.Users.FindAsync(id);
+    }
+
+    public async Task<(User? User, string? Error)> CreateAsync(CreateUserRequest request)
+    {
+        // Email kontrolü
+        var emailExists = await _context.Users
+            .AnyAsync(u => u.Email == request.Email);
+
+        if (emailExists)
+            return (null, "Email already in use.");
+
+        var user = new User
         {
-            new User { Id = 1, FirstName = "Json", LastName = "Dev",
-                       Email = "json@example.com", PhoneNumber = "5555555555" },
-            new User { Id = 2, FirstName = "Clara", LastName = "Dev",
-                   Email = "clara@example.com", PhoneNumber = "5555555544" }
-          };
-        private int _nextId = 3;
+            FirstName = request.FirstName,
+            LastName = request.LastName,
+            Email = request.Email,
+            PhoneNumber = request.PhoneNumber,
+            CreatedAt = DateTime.UtcNow
+        };
 
-        public Task<List<User>> GetAllAsync()
-        {
-            return Task.FromResult(_users.ToList());
-        }
+        _context.Users.Add(user);
+        await _context.SaveChangesAsync();
+        return (user, null);
+    }
 
-        public  Task<User?> GetByIdAsync(int id)
-        {
-            var user =  _users.FirstOrDefault(u => u.Id == id);
-            return Task.FromResult(user);
-        }
+    public async Task<User?> UpdateAsync(int id, CreateUserRequest request)
+    {
+        var user = await _context.Users.FindAsync(id);
+        if (user is null) return null;
 
-        public Task<(User? User, string? Error)> CreateAsync(CreateUserRequest request)
-        {
-            var emailExist = _users.Any(u => u.Email == request.Email);
-            if (emailExist)
-                return Task.FromResult<(User?, string?)>((null, "Email already exist"));
+        var emailTaken = await _context.Users
+            .AnyAsync(u => u.Email == request.Email && u.Id != id);
+        if (emailTaken) return null;
 
-            var user = new User
-            {
-                Id = _nextId,
-                FirstName = request.FirstName,
-                LastName = request.LastName,
-                Email = request.Email,
-                PhoneNumber = request.PhoneNumber,
-                CreatedAt = DateTime.UtcNow
-            };
+        user.FirstName = request.FirstName;
+        user.LastName = request.LastName;
+        user.Email = request.Email;
+        user.PhoneNumber = request.PhoneNumber;
 
-            _users.Add(user);
-            return Task.FromResult<(User?, string?)>((user, null));
-        }
+        await _context.SaveChangesAsync();
+        return user;
+    }
 
-        public Task<User?> UpdateAsync(int id, CreateUserRequest request)
-        {
-            var user = _users.FirstOrDefault(u => u.Id == id);
-            if (user is null) return Task.FromResult<User?>(null);
+    public async Task<bool> DeleteAsync(int id)
+    {
+        var user = await _context.Users.FindAsync(id);
+        if (user is null) return false;
 
-            
-            var emailTaken = _users.Any(u => u.Email == request.Email && u.Id != id);
-            if (emailTaken) return Task.FromResult<User?>(null);
-
-            user.FirstName = request.FirstName;
-            user.LastName = request.LastName;
-            user.Email = request.Email;
-            user.PhoneNumber = request.PhoneNumber;
-
-            return Task.FromResult<User?>(user);
-        }
-
-        public Task<bool> DeleteAsync(int id)
-        {
-            var user = _users.FirstOrDefault(u => u.Id == id);
-            if (user is null) return Task.FromResult(false);
-
-
-            _users.Remove(user);
-            return Task.FromResult(true);
-        }
-
+        _context.Users.Remove(user);
+        await _context.SaveChangesAsync();
+        return true;
     }
 }

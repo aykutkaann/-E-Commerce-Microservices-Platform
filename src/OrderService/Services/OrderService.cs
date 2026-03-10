@@ -1,39 +1,41 @@
-﻿using OrderService.Models;
+﻿using Microsoft.EntityFrameworkCore;
+using OrderService.Data;
+using OrderService.Models;
 
 namespace OrderService.Services;
 
 public class OrderService : IOrderService
 {
+    private readonly AppDbContext _context;
     private readonly HttpClient _httpClient;
-    private readonly OrderRepository _repository; 
 
-    public OrderService(HttpClient httpClient, OrderRepository repository)
+    public OrderService(AppDbContext context, HttpClient httpClient)
     {
+        _context = context;
         _httpClient = httpClient;
-        _repository = repository; 
     }
 
-    public Task<List<Order>> GetAllAsync()
+    public async Task<List<Order>> GetAllAsync()
     {
-        return Task.FromResult(_repository.Orders.ToList());
+        return await _context.Orders.ToListAsync();
     }
 
-    public Task<Order?> GetByIdAsync(int id)
+    public async Task<Order?> GetByIdAsync(int id)
     {
-        var order = _repository.Orders.FirstOrDefault(o => o.Id == id);
-        return Task.FromResult(order);
+        return await _context.Orders.FindAsync(id);
     }
 
-    public Task<List<Order>> GetByUserIdAsync(int userId)
+    public async Task<List<Order>> GetByUserIdAsync(int userId)
     {
-        var orders = _repository.Orders.Where(o => o.UserId == userId).ToList();
-        return Task.FromResult(orders);
+        return await _context.Orders
+            .Where(o => o.UserId == userId)
+            .ToListAsync();
     }
 
     public async Task<(Order? Order, string? Error)> CreateAsync(CreateOrderRequest request)
     {
+        // ProductService'e sor
         ProductResponse? product = null;
-
         try
         {
             product = await _httpClient.GetFromJsonAsync<ProductResponse>(
@@ -41,18 +43,17 @@ public class OrderService : IOrderService
         }
         catch
         {
-            return (null, "ProductService'e ulaşılamadı.");
+            return (null, "ProductService could not be reached..");
         }
 
         if (product is null)
-            return (null, $"Ürün bulunamadı. ProductId: {request.ProductId}");
+            return (null, $"Product not found. ProductId: {request.ProductId}");
 
         if (product.Stock < request.Quantity)
-            return (null, $"Yetersiz stok. Mevcut: {product.Stock}, İstenen: {request.Quantity}");
+            return (null, $"Insufficient stock. Available: {product.Stock}, Request: {request.Quantity}");
 
         var order = new Order
         {
-            Id = _repository.NextId++, 
             UserId = request.UserId,
             ProductId = request.ProductId,
             Quantity = request.Quantity,
@@ -61,30 +62,28 @@ public class OrderService : IOrderService
             CreatedAt = DateTime.UtcNow
         };
 
-        _repository.Orders.Add(order); 
+        _context.Orders.Add(order);
+        await _context.SaveChangesAsync();
         return (order, null);
     }
 
-    public Task<Order?> UpdateStatusAsync(int id, OrderStatus status)
+    public async Task<Order?> UpdateStatusAsync(int id, OrderStatus status)
     {
-        var order = _repository.Orders.FirstOrDefault(o => o.Id == id);
-        if (order is null) return Task.FromResult<Order?>(null);
+        var order = await _context.Orders.FindAsync(id);
+        if (order is null) return null;
 
         order.Status = status;
-        return Task.FromResult<Order?>(order);
+        await _context.SaveChangesAsync();
+        return order;
     }
 
-    public Task<bool> DeleteAsync(int id)
+    public async Task<bool> DeleteAsync(int id)
     {
-        var order = _repository.Orders.FirstOrDefault(o => o.Id == id);
-        if (order is null) return Task.FromResult(false);
+        var order = await _context.Orders.FindAsync(id);
+        if (order is null) return false;
 
-        _repository.Orders.Remove(order);
-        return Task.FromResult(true);
+        _context.Orders.Remove(order);
+        await _context.SaveChangesAsync();
+        return true;
     }
-}
-public class OrderRepository
-{
-    public List<Order> Orders { get; } = new();
-    public int NextId { get; set; } = 1;
 }
