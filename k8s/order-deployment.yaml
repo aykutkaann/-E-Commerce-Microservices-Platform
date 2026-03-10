@@ -39,13 +39,13 @@ spec:
               memory: 256Mi
           livenessProbe:
             httpGet:
-              path: /swagger
+              path: /health
               port: 8080
             initialDelaySeconds: 30
             periodSeconds: 30
           readinessProbe:
             httpGet:
-              path: /swagger
+              path: /health/ready
               port: 8080
             initialDelaySeconds: 15
             periodSeconds: 10

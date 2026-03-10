@@ -9,22 +9,30 @@ namespace OrderService.Controllers
     public class OrdersController : ControllerBase
     {
         private readonly IOrderService _orderService;
+        private readonly ILogger<OrdersController> _logger;
 
-        public OrdersController(IOrderService orderService)
+
+        public OrdersController(IOrderService orderService, ILogger<OrdersController> logger)
         {
             _orderService = orderService;
+            _logger = logger;
         }
 
         [HttpGet]
         public async Task<ActionResult<List<Order>>> GetAll()
         {
+
+            _logger.LogInformation("Getting all orders");
             var orders = await _orderService.GetAllAsync();
+            _logger.LogInformation("Returned {Count} orders", orders.Count());
             return Ok(orders);
         }
 
         [HttpGet("{id}")]
         public async Task<ActionResult<Order>> GetById(int id)
         {
+
+
             var order = await _orderService.GetByIdAsync(id);
             if (order is null)
                 return NotFound();
@@ -41,6 +49,7 @@ namespace OrderService.Controllers
         [HttpPost]
         public async Task<ActionResult<Order>> Create(CreateOrderRequest request)
         {
+
             var (order, error) = await _orderService.CreateAsync(request);
             if (error is not null)
                 return BadRequest(new { message = error });

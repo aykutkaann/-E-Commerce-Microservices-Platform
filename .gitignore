@@ -25,5 +25,6 @@ Thumbs.db
 
 # Secrets 
 **/appsettings.Production.json
+**/appsettings.Development.json
 **/*.pfx
 **/*.key
